@@ -1,0 +1,5 @@
+node_modules/
+.env
+# Sequelize CLI folders (local only)
+config/
+migration/

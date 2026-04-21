@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>LPG AI Test</title>
+</head>
+<body>
+
+<h2>Fraud Detection</h2>
+
+<input id="bookings" placeholder="Bookings"><br><br>
+<input id="cancellations" placeholder="Cancellations"><br><br>
+<input id="address" placeholder="Address"><br><br>
+
+<button onclick="checkFraud()">Check Fraud</button>
+
+<p id="result"></p>
+
+<script>
+async function checkFraud() {
+    const res = await fetch("http://localhost:5000/api/ai/fraud-check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            bookings: document.getElementById("bookings").value,
+            cancellations: document.getElementById("cancellations").value,
+            address: document.getElementById("address").value
+        })
+    });
+
+    const data = await res.json();
+        document.getElementById("result").innerHTML = `
+        <h3>${status}</h3>
+        <p>${data.analysis}</p>
+    `;
+}
+</script>
+
+</body>
+</html>

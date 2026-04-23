@@ -33,8 +33,8 @@ connectDB()
     console.log("✅ DB Connected");
 
     // ✅ THEN start worker
-  //  require("./workers/bookingWorker");
-    //console.log("🔥 Worker started");
+   require("./workers/bookingWorker");
+  console.log("🔥 Worker started");
 
     // ✅ THEN start server
    const PORT = process.env.PORT || 5000;

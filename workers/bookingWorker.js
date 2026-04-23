@@ -2,7 +2,7 @@ const bookingQueue = require("../queues/bookingQueue");
 const Booking = require("../models/Booking");
 const Agent = require("../models/Agent");
 const User = require("../models/User");
-
+const Complaint = require("../models/Complaint");
 const generateInvoice = require("../utils/generateInvoice");
 const { sendOTPEmail, sendInvoiceEmail } = require("../utils/sendEmail");
 
@@ -95,17 +95,26 @@ bookingQueue.process("outForDeliveryJob", async (job) => {
     return;
   }
 
+  // ✅ Update booking
   booking.status = "OUT_FOR_DELIVERY";
   await booking.save();
 
   console.log("🚚 Moved to OUT_FOR_DELIVERY");
 
-  await bookingQueue.add("deliveryJob", {
-    bookingId
-  });
+  // ✅ FIXED: update complaints AFTER booking exists
+  await Complaint.updateMany(
+    { bookingId: booking._id, status: "OPEN" },
+    { status: "IN_PROGRESS" }
+  );
+
+  console.log("🛠 Complaints moved to IN_PROGRESS");
+
+  // 👉 NEXT JOB
+  await bookingQueue.add("deliveryJob", { bookingId });
 
   console.log("➡️ deliveryJob added");
 });
+
 
 
 // ==============================

@@ -1,9 +1,23 @@
 async function findDistributors() {
+  const token = localStorage.getItem("token");
 
-  // 🚫 Prevent re-selection
-  const kycDone = localStorage.getItem("kycDone");
+  if (!token) {
+    alert("Please login first");
+    window.location.href = "login.html";
+    return;
+  }
 
-  if (kycDone === "true") {
+  // ✅ Check user profile from backend
+  const profileRes = await fetch("http://localhost:5000/api/user/profile", {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+
+  const user = await profileRes.json();
+
+  // ✅ If already linked → block re-selection
+  if (user.distributorId && user.kyc?.verified) {
     alert("You are already registered with a distributor");
     window.location.href = "booking.html";
     return;
@@ -16,7 +30,10 @@ async function findDistributors() {
     return;
   }
 
-  const res = await fetch(`http://localhost:5000/api/distributors?address=${address}`);
+  // 🔍 Fetch distributors
+  const res = await fetch(
+    `http://localhost:5000/api/distributors?address=${address}`
+  );
   const data = await res.json();
 
   let html = "<h4>Select Distributor</h4>";

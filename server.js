@@ -1,24 +1,20 @@
 const express = require("express");
 const dotenv = require("dotenv");
-dotenv.config();
+
+dotenv.config(); // ✅ FIRST
 
 const cors = require("cors");
 const path = require("path");
+
 const connectDB = require("./config/db");
+
 const aiRoutes = require("./routes/aiRoutes");
 const bookingRoutes = require("./routes/bookingRoutes");
 const distributorRoutes = require("./routes/distributorRoutes");
 const userRoutes = require("./routes/userRoutes");
-//require("./scheduler/scheduler");
-try {
-  require("./workers/bookingWorker");
-  console.log("✅ Worker loaded successfully");
-} catch (err) {
-  console.log("❌ Worker load failed:", err);
-}
-
 
 const app = express();
+
 app.use(express.json());
 app.use(cors());
 app.use(express.static(path.join(__dirname, "public")));
@@ -31,8 +27,20 @@ app.use("/api/distributors", distributorRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/complaints", require("./routes/ComplaintRoutes"));
 
+// ✅ CONNECT DB FIRST
+connectDB()
+  .then(() => {
+    console.log("✅ DB Connected");
 
-connectDB();
- 
+    // ✅ THEN start worker
+  //  require("./workers/bookingWorker");
+    //console.log("🔥 Worker started");
 
-app.listen(5000, () => console.log("Server running on port 5000"));
+    // ✅ THEN start server
+    app.listen(5000, () =>
+      console.log("🚀 Server running on port 5000")
+    );
+  })
+  .catch((err) => {
+    console.error("❌ DB Connection Failed:", err);
+  });

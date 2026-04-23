@@ -1,3 +1,4 @@
+invoices/
 node_modules/
 .env
 # Sequelize CLI folders (local only)

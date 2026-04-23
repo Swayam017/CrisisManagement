@@ -2,8 +2,13 @@ const Queue = require("bull");
 
 const bookingQueue = new Queue("bookingQueue", {
   redis: {
-    host: "127.0.0.1",
-    port: 6379
+    host: process.env.REDIS_HOST,
+    port: Number(process.env.REDIS_PORT), 
+    password: process.env.REDIS_PASSWORD
+  },
+  defaultJobOptions: {
+    attempts: 3,
+    backoff: 5000
   }
 });
 

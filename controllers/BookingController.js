@@ -2,6 +2,7 @@ const Booking = require("../models/Booking");
 const User = require("../models/User");
 const Agent = require("../models/Agent");
 const bookingQueue = require("../queues/bookingQueue");
+const Complaint = require("../models/Complaint");
 
 //  CREATE BOOKING (NO AGENT HERE)
 exports.createBooking = async (req, res) => {
@@ -131,6 +132,13 @@ exports.verifyOTP = async (req, res) => {
 
     await booking.save();
 
+await Complaint.updateMany(
+  { bookingId: booking._id, status: { $ne: "RESOLVED" } },
+  { status: "RESOLVED" }
+);
+
+console.log("✅ Complaints resolved");
+
     // Free agent
     if (booking.agentId) {
       const agent = await Agent.findById(booking.agentId);
@@ -147,6 +155,23 @@ exports.verifyOTP = async (req, res) => {
     res.json({ message: "Delivery verified successfully" });
 
   } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// 📜 GET ALL BOOKINGS (HISTORY)
+exports.getBookingHistory = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const bookings = await Booking.find({ userId })
+      .populate("agentId", "name phone")
+      .sort({ createdAt: -1 });
+
+    res.json({ bookings });
+
+  } catch (err) {
+    console.log("HISTORY ERROR:", err);
     res.status(500).json({ message: err.message });
   }
 };

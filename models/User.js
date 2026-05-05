@@ -5,11 +5,11 @@ const userSchema = new mongoose.Schema({
   email: String,
   password: String,
 
-  role: {
-    type: String,
-    enum: ["user", "admin"],
-    default: "user"
-  },
+role: {
+  type: String,
+  enum: ["USER", "ADMIN", "DISTRIBUTOR"],
+  default: "USER"
+},
 
   distributorId: {
     type: mongoose.Schema.Types.ObjectId,

@@ -30,6 +30,8 @@ app.use("/api/distributors", distributorRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/complaints", require("./routes/ComplaintRoutes"));
 app.use("/api", require("./routes/webhook"));
+app.use("/api/admin", require("./routes/adminRoutes"));
+app.use("/api/distributor-dashboard", require("./routes/distributorDashboardRoutes"));
 
 // ✅ CONNECT DB FIRST
 connectDB()

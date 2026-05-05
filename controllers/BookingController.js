@@ -3,9 +3,8 @@ const User = require("../models/User");
 const Agent = require("../models/Agent");
 const Complaint = require("../models/Complaint");
 const { createOrder } = require("../services/cashfreeService");
+const Distributor = require("../models/Distributor");
 
-console.log("🚀 NEW CREATE BOOKING HIT");
-// 🔥 CREATE BOOKING (WITH PAYMENT INIT)
 exports.createBooking = async (req, res) => {
   try {
     const { address } = req.body;
@@ -21,6 +20,15 @@ exports.createBooking = async (req, res) => {
     if (!user.distributorId) {
       return res.status(400).json({
         message: "Distributor not selected"
+      });
+    }
+
+    // 🔥 STOCK CHECK (MOVE HERE)
+    const distributor = await Distributor.findById(user.distributorId);
+
+    if (!distributor || distributor.stock <= 0) {
+      return res.status(400).json({
+        message: "Out of stock"
       });
     }
 
@@ -67,7 +75,7 @@ exports.createBooking = async (req, res) => {
 
     const amount = 1100;
 
-    // ✅ Create booking (NO AGENT, NO QUEUE)
+    // ✅ Create booking
     const booking = await Booking.create({
       userId: user._id,
       distributorId: user.distributorId,
@@ -78,13 +86,12 @@ exports.createBooking = async (req, res) => {
       amount
     });
 
-    // ✅ Create payment order safely
+    // ✅ Payment
     let paymentData;
 
     try {
       paymentData = await createOrder({ amount, user });
     } catch (err) {
-      // 🔥 Rollback booking if payment fails
       await Booking.findByIdAndDelete(booking._id);
 
       console.log("PAYMENT ERROR:", err);
@@ -94,15 +101,11 @@ exports.createBooking = async (req, res) => {
       });
     }
 
-    // ✅ Save orderId
     booking.orderId = paymentData.orderId;
-
-    // Optional: expiry (15 min)
     booking.paymentExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
     await booking.save();
 
-    // ✅ Response to frontend
     res.json({
       message: "Booking created, proceed to payment",
       booking,

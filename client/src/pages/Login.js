@@ -7,7 +7,7 @@ export default function Login() {
     password: ""
   });
 
-  const navigate = useNavigate(); // ✅ REQUIRED
+  const navigate = useNavigate();
 
   const handleLogin = async () => {
     try {
@@ -29,18 +29,27 @@ export default function Login() {
         return;
       }
 
-      // ✅ SAVE TOKEN
+      // ✅ SAVE TOKEN + ROLE
       localStorage.setItem("token", data.token);
+      localStorage.setItem("role", data.user.role);
 
       alert("Login successful ✅");
 
-      // 🔥 CHECK DISTRIBUTOR FLOW
-      const distributorId = localStorage.getItem("selectedDistributor");
+      const role = data.user.role;
 
-      if (distributorId) {
-        navigate(`/kyc?distributorId=${distributorId}`);
+      // 🔥 ROLE BASED REDIRECT
+      if (role === "ADMIN") {
+        navigate("/admin");
+      } else if (role === "DISTRIBUTOR") {
+        navigate("/distributor");
       } else {
-        navigate("/dashboard");
+        const distributorId = localStorage.getItem("selectedDistributor");
+
+        if (distributorId) {
+          navigate(`/kyc?distributorId=${distributorId}`);
+        } else {
+          navigate("/dashboard");
+        }
       }
 
     } catch (err) {
@@ -51,11 +60,8 @@ export default function Login() {
 
   return (
     <div className="flex justify-center items-center h-screen bg-gray-900 text-white">
-
       <div className="bg-gray-800 p-8 rounded-xl w-80 shadow-lg">
-        <h2 className="text-2xl mb-6 font-semibold text-center">
-          Login
-        </h2>
+        <h2 className="text-2xl mb-6 font-semibold text-center">Login</h2>
 
         <input
           className="w-full p-2 mb-3 rounded text-black"

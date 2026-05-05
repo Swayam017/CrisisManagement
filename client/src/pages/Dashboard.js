@@ -9,6 +9,19 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const API = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
+  // 🔥 AUTO REDIRECT BASED ON ROLE (VERY IMPORTANT)
+  useEffect(() => {
+    const role = localStorage.getItem("role");
+
+    if (role === "ADMIN") {
+      navigate("/admin");
+    }
+
+    if (role === "DISTRIBUTOR") {
+      navigate("/distributor");
+    }
+  }, [navigate]);
+
   const loadDashboard = useCallback(async () => {
     const token = localStorage.getItem("token");
 
@@ -18,14 +31,14 @@ export default function Dashboard() {
     }
 
     try {
-      // 👤 USER
+      // 👤 USER DATA
       const userRes = await fetch(`${API}/api/user/profile`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const userData = await userRes.json();
       setUser(userData);
 
-      // 📦 BOOKING
+      // 📦 BOOKING DATA
       const bookingRes = await fetch(`${API}/api/bookings/my-booking`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -45,10 +58,10 @@ export default function Dashboard() {
 
   const handleLogout = () => {
     localStorage.removeItem("token");
+    localStorage.removeItem("role");
     navigate("/");
   };
 
-  // 🔥 SELECT DISTRIBUTOR BUTTON
   const handleSelectDistributor = () => {
     navigate("/select-distributor");
   };
@@ -86,7 +99,7 @@ export default function Dashboard() {
 
         <p className="text-gray-400">{user?.email}</p>
 
-        {/* 🔥 DISTRIBUTOR STATUS */}
+        {/* DISTRIBUTOR STATUS */}
         {!user?.distributorId ? (
           <div className="mt-4 bg-red-500 p-3 rounded">
             ⚠ Not registered with any distributor
@@ -105,17 +118,25 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* 📦 BOOKING */}
+      {/* 📦 BOOKING STATUS */}
       {user?.distributorId && (
         <div className="bg-gray-800 p-6 rounded-xl mb-6">
           <h2 className="text-xl mb-4">📦 Booking Status</h2>
 
           {booking ? (
             <>
-              <p>Status: <span className="text-green-400">{booking.status}</span></p>
-              <p>📍 {booking.address}</p>
               <p>
-                📅 {booking.scheduledDate
+                Status:{" "}
+                <span className="text-green-400">
+                  {booking.status}
+                </span>
+              </p>
+
+              <p>📍 {booking.address}</p>
+
+              <p>
+                📅{" "}
+                {booking.scheduledDate
                   ? new Date(booking.scheduledDate).toDateString()
                   : "Not scheduled"}
               </p>
@@ -161,7 +182,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ⚠ ALERT */}
+      {/* ⚠ FRAUD ALERT */}
       {booking && (
         <div className="bg-yellow-500 p-4 mt-6 text-black rounded">
           ⚠ {booking.aiFlag === "FRAUD"
@@ -169,6 +190,7 @@ export default function Dashboard() {
             : "No alerts"}
         </div>
       )}
+
     </div>
   );
 }

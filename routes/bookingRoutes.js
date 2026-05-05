@@ -17,10 +17,10 @@ router.get("/payment-status/:orderId", async (req, res) => {
 
     const status = await getPaymentStatusFromCF(orderId);
 
-    // 🔥 UPDATE DB IF PAYMENT SUCCESS
     if (status === "SUCCESS") {
       const Booking = require("../models/Booking");
       const bookingQueue = require("../queues/bookingQueue");
+      const Distributor = require("../models/Distributor");
 
       const booking = await Booking.findOne({ orderId });
 
@@ -30,13 +30,23 @@ router.get("/payment-status/:orderId", async (req, res) => {
 
         console.log("✅ Booking updated from payment status API");
 
-     console.log("🚀 Triggering worker for booking:", booking._id);
+        // 🔥 REDUCE STOCK HERE
+        const distributor = await Distributor.findById(booking.distributorId);
 
-await bookingQueue.add("processBooking", {
-  bookingId: booking._id
-});
+        if (distributor && distributor.stock > 0) {
+          distributor.stock -= 1;
+          await distributor.save();
+          console.log("📦 Stock reduced");
+        }
 
-console.log("✅ Job added to queue");
+        // 🚀 Trigger worker
+        console.log("🚀 Triggering worker for booking:", booking._id);
+
+        await bookingQueue.add("processBooking", {
+          bookingId: booking._id
+        });
+
+        console.log("✅ Job added to queue");
       }
     }
 

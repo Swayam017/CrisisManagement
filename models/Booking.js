@@ -22,17 +22,25 @@ amount: {
 },
   address: String,
 
- status: {
+status: {
   type: String,
   enum: [
-    "BOOKED",
+    "PENDING_PAYMENT",
+    "CONFIRMED",
     "ASSIGNED",
     "OUT_FOR_DELIVERY",
-    "OTP_SENT",
     "DELIVERED"
   ],
-  default: "BOOKED"
+  default: "PENDING_PAYMENT"
 },
+
+orderId: {
+  type: String,
+  unique: true,
+    sparse: true
+},
+
+paymentExpiresAt: Date,
 
   bookingDate: {
     type: Date,

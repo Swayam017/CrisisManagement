@@ -1,29 +1,42 @@
 const Booking = require("../models/Booking");
 const User = require("../models/User");
 const Agent = require("../models/Agent");
-const bookingQueue = require("../queues/bookingQueue");
 const Complaint = require("../models/Complaint");
+const { createOrder } = require("../services/cashfreeService");
 
-//  CREATE BOOKING (NO AGENT HERE)
+console.log("🚀 NEW CREATE BOOKING HIT");
+// 🔥 CREATE BOOKING (WITH PAYMENT INIT)
 exports.createBooking = async (req, res) => {
   try {
     const { address } = req.body;
 
     const user = await User.findById(req.user.id);
 
-    // KYC check
+    // ✅ KYC check
     if (!user.kyc || !user.kyc.verified) {
       return res.status(400).json({ message: "Complete KYC first" });
     }
 
-    // Distributor check
+    // ✅ Distributor check
     if (!user.distributorId) {
       return res.status(400).json({
         message: "Distributor not selected"
       });
     }
 
-    // Monthly limit
+    // ✅ Prevent duplicate pending payment
+    const existingPending = await Booking.findOne({
+      userId: user._id,
+      status: "PENDING_PAYMENT"
+    });
+
+    if (existingPending) {
+      return res.status(400).json({
+        message: "Complete previous payment first"
+      });
+    }
+
+    // ✅ Monthly limit
     const startOfMonth = new Date();
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
@@ -39,7 +52,7 @@ exports.createBooking = async (req, res) => {
       });
     }
 
-    // Fraud detection
+    // ✅ Fraud detection
     const totalBookings = await Booking.countDocuments({
       userId: user._id
     });
@@ -52,28 +65,49 @@ exports.createBooking = async (req, res) => {
       aiAnalysis = "Excessive bookings detected.";
     }
 
-    let amount = 1100;
-console.log("DEBUG AMOUNT:", amount);
-      
-    // ✅ Create booking (NO AGENT ASSIGNMENT)
+    const amount = 1100;
+
+    // ✅ Create booking (NO AGENT, NO QUEUE)
     const booking = await Booking.create({
       userId: user._id,
       distributorId: user.distributorId,
       address,
-      status: "BOOKED",
+      status: "PENDING_PAYMENT",
       aiFlag,
       aiAnalysis,
-        amount
+      amount
     });
 
-        //  ADD TO QUEUE
-    await bookingQueue.add("processBooking", {
-      bookingId: booking._id
-    });
+    // ✅ Create payment order safely
+    let paymentData;
 
+    try {
+      paymentData = await createOrder({ amount, user });
+    } catch (err) {
+      // 🔥 Rollback booking if payment fails
+      await Booking.findByIdAndDelete(booking._id);
+
+      console.log("PAYMENT ERROR:", err);
+
+      return res.status(500).json({
+        message: "Payment initialization failed"
+      });
+    }
+
+    // ✅ Save orderId
+    booking.orderId = paymentData.orderId;
+
+    // Optional: expiry (15 min)
+    booking.paymentExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+    await booking.save();
+
+    // ✅ Response to frontend
     res.json({
-      message: "Booking successful",
-      booking
+      message: "Booking created, proceed to payment",
+      booking,
+      payment_session_id: paymentData.paymentSessionId,
+      order_id: paymentData.orderId
     });
 
   } catch (err) {
@@ -105,7 +139,7 @@ exports.getMyBooking = async (req, res) => {
 };
 
 
-// 🔐 VERIFY OTP (ONLY USER CONFIRMS DELIVERY)
+// 🔐 VERIFY OTP (FINAL DELIVERY STEP)
 exports.verifyOTP = async (req, res) => {
   try {
     const { bookingId, otp } = req.body;
@@ -116,6 +150,12 @@ exports.verifyOTP = async (req, res) => {
       return res.status(404).json({ message: "Booking not found" });
     }
 
+    if (booking.status !== "OUT_FOR_DELIVERY") {
+      return res.status(400).json({
+        message: "Delivery not in progress"
+      });
+    }
+
     if (booking.otp !== otp) {
       return res.status(400).json({ message: "Invalid OTP" });
     }
@@ -124,30 +164,31 @@ exports.verifyOTP = async (req, res) => {
       return res.status(400).json({ message: "OTP expired" });
     }
 
+    // ✅ Mark delivered
     booking.status = "DELIVERED";
-    console.log("✅ Booking delivered");
     booking.isVerified = true;
     booking.otp = null;
     booking.otpExpires = null;
 
     await booking.save();
 
-await Complaint.updateMany(
-  { bookingId: booking._id, status: { $ne: "RESOLVED" } },
-  { status: "RESOLVED" }
-);
+    // ✅ Resolve complaints
+    await Complaint.updateMany(
+      { bookingId: booking._id, status: { $ne: "RESOLVED" } },
+      { status: "RESOLVED" }
+    );
 
-console.log("✅ Complaints resolved");
-
-    // Free agent
+    // ✅ Free agent
     if (booking.agentId) {
       const agent = await Agent.findById(booking.agentId);
 
       if (agent) {
         agent.currentDeliveries -= 1;
+
         if (agent.currentDeliveries < 3) {
           agent.available = true;
         }
+
         await agent.save();
       }
     }
@@ -159,7 +200,8 @@ console.log("✅ Complaints resolved");
   }
 };
 
-// 📜 GET ALL BOOKINGS (HISTORY)
+
+// 📜 GET BOOKING HISTORY
 exports.getBookingHistory = async (req, res) => {
   try {
     const userId = req.user.id;

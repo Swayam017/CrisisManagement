@@ -8,9 +8,8 @@ const { sendOTPEmail, sendInvoiceEmail } = require("../utils/sendEmail");
 
 console.log("🔥 Worker started...");
 
-
 // ==============================
-// 1️⃣ PROCESS BOOKING
+// 1️⃣ PROCESS BOOKING (AFTER PAYMENT)
 // ==============================
 bookingQueue.process("processBooking", async (job) => {
   console.log("📥 processBooking job received");
@@ -20,22 +19,37 @@ bookingQueue.process("processBooking", async (job) => {
   const booking = await Booking.findById(bookingId);
   if (!booking) return;
 
-  if (booking.status !== "BOOKED") return;
+  // ✅ Only process after payment confirmation
+  if (booking.status !== "CONFIRMED") {
+    console.log("⛔ Not CONFIRMED");
+    return;
+  }
 
-  const agents = await Agent.find({
-    distributorId: booking.distributorId
-  }).sort({ currentDeliveries: 1 });
+  // ✅ Prevent duplicate processing
+  if (booking.agentId) {
+    console.log("⛔ Already assigned");
+    return;
+  }
 
-  const agent = agents.find(
-    a => (a.currentDeliveries || 0) < (a.maxCapacity || 3)
-  );
+  // 🔍 Find available agent
+const agents = await Agent.find({
+  distributorId: booking.distributorId,
+  available: true
+}).sort({ currentDeliveries: 1 });
+
+const agent = agents.find(
+  a =>
+    (a.currentDeliveries || 0) < (a.maxCapacity || 3) &&
+    a.available === true
+);
+console.log("Matching agents:", agents);
 
   if (!agent) {
     console.log("❌ No agent available");
     return;
   }
 
-  // ✅ Assign
+  // ✅ Assign agent
   booking.agentId = agent._id;
   booking.status = "ASSIGNED";
 
@@ -47,35 +61,29 @@ bookingQueue.process("processBooking", async (job) => {
 
   await booking.save();
 
-  agent.currentDeliveries += 1;
+  agent.currentDeliveries = (agent.currentDeliveries || 0) + 1;
   await agent.save();
 
   console.log("✅ Booking assigned");
 
-  // 🚨 ADD NEXT JOB FIRST (IMPORTANT)
+  // 👉 Next step
   await bookingQueue.add("outForDeliveryJob", { bookingId });
 
   console.log("➡️ outForDeliveryJob added");
 
-  // 📄 EMAIL (NON-BLOCKING)
-try {
-  const user = await User.findById(booking.userId);
+  // 📄 Send invoice (non-blocking)
+  try {
+    const user = await User.findById(booking.userId);
 
-  if (user?.email) {
-    const filePath = await generateInvoice(booking, user);
+    if (user?.email) {
+      const filePath = await generateInvoice(booking, user);
+      await sendInvoiceEmail(user.email, filePath);
 
-    console.log("📄 Invoice path:", filePath);
-
-    const fs = require("fs");
-    console.log("File exists:", fs.existsSync(filePath));
-
-    await sendInvoiceEmail(user.email, filePath);
-
-    console.log("📧 Invoice sent");
+      console.log("📧 Invoice sent");
+    }
+  } catch (err) {
+    console.log("❌ Invoice email error:", err.message);
   }
-} catch (err) {
-  console.log("❌ FULL EMAIL ERROR:", err);
-}
 });
 
 
@@ -91,17 +99,17 @@ bookingQueue.process("outForDeliveryJob", async (job) => {
   if (!booking) return;
 
   if (booking.status !== "ASSIGNED") {
-    console.log("⛔ Not eligible");
+    console.log("⛔ Not ASSIGNED");
     return;
   }
 
-  // ✅ Update booking
+  // ✅ Move to delivery stage
   booking.status = "OUT_FOR_DELIVERY";
   await booking.save();
 
   console.log("🚚 Moved to OUT_FOR_DELIVERY");
 
-  // ✅ FIXED: update complaints AFTER booking exists
+  // ✅ Update complaints
   await Complaint.updateMany(
     { bookingId: booking._id, status: "OPEN" },
     { status: "IN_PROGRESS" }
@@ -109,16 +117,15 @@ bookingQueue.process("outForDeliveryJob", async (job) => {
 
   console.log("🛠 Complaints moved to IN_PROGRESS");
 
-  // 👉 NEXT JOB
+  // 👉 Next step
   await bookingQueue.add("deliveryJob", { bookingId });
 
   console.log("➡️ deliveryJob added");
 });
 
 
-
 // ==============================
-// 3️⃣ DELIVERY (OTP)
+// 3️⃣ DELIVERY (OTP GENERATION)
 // ==============================
 bookingQueue.process("deliveryJob", async (job) => {
   console.log("📥 deliveryJob received");
@@ -135,14 +142,17 @@ bookingQueue.process("deliveryJob", async (job) => {
 
   const user = await User.findById(booking.userId);
 
+  // ✅ Generate OTP
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-  booking.status = "OTP_SENT";
   booking.otp = otp;
   booking.otpExpires = Date.now() + 5 * 60 * 1000;
 
   await booking.save();
 
+  console.log("🔐 OTP Generated:", otp);
+
+  // 📧 Send OTP
   if (user?.email) {
     try {
       await sendOTPEmail(user.email, otp);
@@ -151,6 +161,4 @@ bookingQueue.process("deliveryJob", async (job) => {
       console.log("❌ OTP email error:", err.message);
     }
   }
-
-  console.log("🔐 OTP Generated:", otp);
 });

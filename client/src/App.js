@@ -11,26 +11,31 @@ import History from "./pages/History";
 import Complaint from "./pages/Complaint";
 import TrackDelivery from "./pages/TrackDelivery";
 
-
 function App() {
   return (
-    <Router>
-      <Routes>
-        {/* 🌐 Public */}
-        <Route path="/" element={<Home />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
+<Router>
+  <Routes>
 
-        {/* 🔐 Protected Flow */}
-        <Route path="/select-distributor" element={<SelectDistributor />} />
-        <Route path="/kyc" element={<KYC />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/book" element={<BookCylinder />} />
-        <Route path="/history" element={<History />} />
-        <Route path="/complaint" element={<Complaint />} />
-        <Route path="/track" element={<TrackDelivery />} />
-      </Routes>
-    </Router>
+    {/* 🌐 Public */}
+    <Route path="/" element={<Home />} />
+    <Route path="/login" element={<Login />} />
+    <Route path="/signup" element={<Signup />} />
+
+    {/* 🔐 Flow */}
+    <Route path="/select-distributor" element={<SelectDistributor />} />
+    <Route path="/kyc" element={<KYC />} />
+    <Route path="/dashboard" element={<Dashboard />} />
+    <Route path="/book" element={<BookCylinder />} />
+
+   
+
+    {/* 📦 Other */}
+    <Route path="/history" element={<History />} />
+    <Route path="/complaint" element={<Complaint />} />
+    <Route path="/track" element={<TrackDelivery />} />
+
+  </Routes>
+</Router>
   );
 }
 

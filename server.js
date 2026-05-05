@@ -1,7 +1,7 @@
 const express = require("express");
 const dotenv = require("dotenv");
 
-dotenv.config(); // ✅ FIRST
+dotenv.config(); 
 
 const cors = require("cors");
 const path = require("path");
@@ -20,12 +20,16 @@ app.use(cors());
 //app.use(express.static(path.join(__dirname, "public")));
 
 // Routes
+app.get("/", (req, res) => {
+  res.send("🚀 Server is running successfully");
+});
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/ai", aiRoutes);
 app.use("/api/bookings", bookingRoutes);
 app.use("/api/distributors", distributorRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/complaints", require("./routes/ComplaintRoutes"));
+app.use("/api", require("./routes/webhook"));
 
 // ✅ CONNECT DB FIRST
 connectDB()
